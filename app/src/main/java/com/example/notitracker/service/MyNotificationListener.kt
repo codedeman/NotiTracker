@@ -1,4 +1,4 @@
-package com.example.notihub.service
+package com.example.notitracker.service
 
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
@@ -16,9 +16,15 @@ class MyNotificationListener : NotificationListenerService() {
         Log.d("NOTI", "App: $packageName")
         Log.d("NOTI", "Title: $title")
         Log.d("NOTI", "Text: $text")
+        Log.d("NOTI_DEBUG", "App: $packageName | $title - $text")
+
     }
 
     override fun onNotificationRemoved(sbn: StatusBarNotification) {
         Log.d("NOTI", "Notification removed")
+    }
+
+    override fun onListenerConnected() {
+        Log.d("NOTI", "CONNECTED ✅")
     }
 }
