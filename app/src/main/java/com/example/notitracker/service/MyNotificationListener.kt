@@ -4,8 +4,9 @@ import android.app.Notification
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
+import com.example.notitracker.NotiTrackerApp
 import com.example.notitracker.data.remote.NetworkResponse
-import com.example.notitracker.data.remote.NotificationDto
+import com.example.notitracker.data.remote.dto.NotificationDto
 import com.example.notitracker.data.repository.NotificationRepository
 import com.example.notitracker.util.NotificationHelper
 import kotlinx.coroutines.CoroutineScope
@@ -20,32 +21,30 @@ class MyNotificationListener : NotificationListenerService() {
     private val scope = CoroutineScope(Dispatchers.Default)
     private var batchJob: Job? = null
     private val notificationBuffer = mutableListOf<NotificationDto>()
+    
+    private var lastReplyAction: Notification.Action? = null
+    private var lastResultKey: String? = null // Lưu key trả lời
 
-    // In a real app, use Dependency Injection to get the repository
     private lateinit var repository: NotificationRepository
 
     override fun onCreate() {
         super.onCreate()
-        Log.d(TAG, "Service Created")
-        // For demonstration, but use DI in production
-        // repository = ...
+        repository = (application as NotiTrackerApp).networkGraph.notificationRepository
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         val packageName = sbn.packageName
-        Log.d(TAG, "Notification received from: $packageName")
-
-        if (packageName == "com.example.notitracker") {
-            Log.d(TAG, "Ignoring notification from our own app")
-            return
+        
+        // Tìm nút Reply và lấy ResultKey (ví dụ: "reply_text" hoặc "result")
+        val pair = findReplyActionAndKey(sbn.notification)
+        if (pair != null) {
+            lastReplyAction = pair.first
+            lastResultKey = pair.second
         }
 
         val extras = sbn.notification.extras
         val title = extras.getString(Notification.EXTRA_TITLE) ?: "Unknown"
         val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString() ?: ""
-
-        Log.d(TAG, "Title: $title")
-        Log.d(TAG, "Text: $text")
 
         val dto = NotificationDto(
             id = sbn.id.toString(),
@@ -59,47 +58,44 @@ class MyNotificationListener : NotificationListenerService() {
         handleNotification(dto)
     }
 
-    private fun handleNotification(dto: NotificationDto) {
-        notificationBuffer.add(dto)
-        Log.d(TAG, "Added to buffer. Current size: ${notificationBuffer.size}")
-        triggerBatchProcessing()
+    private fun findReplyActionAndKey(notification: Notification): Pair<Notification.Action, String>? {
+        for (i in 0 until (notification.actions?.size ?: 0)) {
+            val action = notification.actions[i]
+            if (action.remoteInputs != null && action.remoteInputs.isNotEmpty()) {
+                val resultKey = action.remoteInputs[0].resultKey
+                return Pair(action, resultKey)
+            }
+        }
+        return null
     }
 
-    override fun onNotificationRemoved(sbn: StatusBarNotification) {
-        Log.d(TAG, "Notification removed from: ${sbn.packageName}")
+    private fun handleNotification(dto: NotificationDto) {
+        notificationBuffer.add(dto)
+        triggerBatchProcessing()
     }
 
     private fun triggerBatchProcessing() {
         batchJob?.cancel()
         batchJob = scope.launch {
-            Log.d(TAG, "Starting batch timer...")
-            delay(5000) // Step F: Time Window (5 seconds)
+            delay(5000) 
 
             val currentBatch = notificationBuffer.toList()
             notificationBuffer.clear()
-            Log.d(TAG, "Processing batch of ${currentBatch.size} notifications")
 
-            // Step G: AI Processing via Repository
-            if (::repository.isInitialized) {
-                val response = repository.getSummary(currentBatch)
-                if (response is NetworkResponse.Success) {
-                    // Step H: Show Smart Notification
+            val response = repository.getSummary(currentBatch)
+            when (response) {
+                is NetworkResponse.Success -> {
                     NotificationHelper.showSmartNotification(
                         context = applicationContext,
                         summary = response.data.summary,
                         replies = response.data.suggestedReplies,
-                        packageName = currentBatch.firstOrNull()?.packageName ?: ""
+                        packageName = currentBatch.lastOrNull()?.packageName ?: "",
+                        originalReplyIntent = lastReplyAction?.actionIntent,
+                        resultKey = lastResultKey // Truyền key xuống
                     )
                 }
-            } else {
-                Log.w(TAG, "Repository not initialized, using simulation")
-                // Simulation if repository not ready
-                NotificationHelper.showSmartNotification(
-                    context = applicationContext,
-                    summary = "You have ${currentBatch.size} new messages. Summary: Busy discussion about the project.",
-                    replies = listOf("Got it", "I'm busy", "Call you later"),
-                    packageName = currentBatch.firstOrNull()?.packageName ?: ""
-                )
+                is NetworkResponse.Error -> Log.w(TAG, "Summary failed: ${response.message}")
+                else -> Unit
             }
         }
     }
