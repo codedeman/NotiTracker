@@ -54,8 +54,8 @@ class MainActivity : ComponentActivity() {
                             onClick = {
                                 NotificationHelper.sendTestNotification(
                                     this@MainActivity,
-                                    "Người gửi: Kien",
-                                    "Tin nhắn test số " + (messages.size + 1)
+                                    "Hello motherfucker",
+                                    "Hello motherfucker"
                                 )
                             },
                             modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
