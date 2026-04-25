@@ -1,46 +1,63 @@
 package com.example.notitracker
 
+import android.Manifest
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.Button
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import com.example.notitracker.ui.theme.NotiTrackerTheme
+import com.example.notitracker.util.NotificationHelper
 
 class MainActivity : ComponentActivity() {
 
+    companion object {
+        const val ACTION_NOTI_EVENT = "com.example.notitracker.NOTI_EVENT"
+    }
+
     private val messages = mutableStateListOf<String>()
     private var isRegistered = false
+
+    private val requestPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted: Boolean ->
+        // Quyền thông báo đã được xử lý
+    }
 
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             val title = intent.getStringExtra("title") ?: ""
             val text = intent.getStringExtra("text") ?: ""
-
-            messages.add("$title - $text")
+            if (title.isNotEmpty() || text.isNotEmpty()) {
+                messages.add(0, "$title: $text")
+            }
         }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // ✅ Chỉ mở settings nếu chưa có quyền
+        checkPermissions()
+
         if (!isNotificationServiceEnabled()) {
             startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
-            return // ❗ tránh crash / flow lỗi
         }
 
         enableEdgeToEdge()
@@ -48,9 +65,28 @@ class MainActivity : ComponentActivity() {
         setContent {
             NotiTrackerTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    LazyColumn(modifier = Modifier.padding(innerPadding)) {
-                        items(messages) { msg ->
-                            Text("Hello My Friend")
+                    Column(modifier = Modifier.padding(innerPadding).padding(16.dp)) {
+                        
+                        // Nút bấm để test thông báo
+                        Button(
+                            onClick = {
+                                NotificationHelper.sendTestNotification(
+                                    this@MainActivity,
+                                    "Thông báo trúng tuyển từ Camcodia",
+                                    "Mức lương 5000USD onstie tại khu tam thái tử việc nhẹ lương cao không yêu cầu bằng cấp"
+                                )
+                            },
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+                        ) {
+                            Text("Gửi Thông Báo Test")
+                        }
+
+                        Text("Danh sách thông báo bắt được:", modifier = Modifier.padding(bottom = 8.dp))
+                        
+                        LazyColumn(modifier = Modifier.weight(1f)) {
+                            items(messages) { msg ->
+                                Text(text = msg, modifier = Modifier.padding(vertical = 4.dp))
+                            }
                         }
                     }
                 }
@@ -60,23 +96,30 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-
         if (!isRegistered) {
-            val filter = IntentFilter("NOTI_EVENT")
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                registerReceiver(receiver, filter, RECEIVER_EXPORTED)
-            } else {
-                registerReceiver(receiver, filter)
-            }
-
+            val filter = IntentFilter(ACTION_NOTI_EVENT)
+            ContextCompat.registerReceiver(
+                this,
+                receiver,
+                filter,
+                ContextCompat.RECEIVER_EXPORTED
+            )
             isRegistered = true
+        }
+    }
+
+    private fun checkPermissions() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
+                PackageManager.PERMISSION_GRANTED
+            ) {
+                requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
         }
     }
 
     override fun onPause() {
         super.onPause()
-
         if (isRegistered) {
             unregisterReceiver(receiver)
             isRegistered = false
