@@ -4,7 +4,6 @@ import com.example.notitracker.data.remote.dto.UserDto
 import com.example.notitracker.data.remote.fake.FakeNetworkClient
 import com.example.notitracker.data.remote.network.NetworkResult
 import com.example.notitracker.data.remote.request.UserApi
-import com.example.notitracker.domain.model.User
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals

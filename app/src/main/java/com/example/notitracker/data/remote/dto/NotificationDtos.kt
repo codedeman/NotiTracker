@@ -9,6 +9,8 @@ data class NotificationDto(
     val sender: String,
     val packageName: String,
     val timestamp: Long,
+    val appName: String = "",
+    val category: String = "general" // "chat", "email", "system", "promo", etc.
 )
 
 // --- OpenAI / DeepSeek Request Objects ---

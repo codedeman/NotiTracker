@@ -3,7 +3,6 @@ package com.example.notitracker.presentation
 import com.example.notitracker.data.remote.network.AppError
 import com.example.notitracker.data.remote.network.NetworkResult
 import com.example.notitracker.data.repository.UserRepository
-import com.example.notitracker.domain.model.User
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flowOf

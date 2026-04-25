@@ -42,40 +42,16 @@ object NotificationHelper {
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
 
-        // Add Suggested Replies as Actions
-        replies.forEachIndexed { index, reply ->
-            val intent = Intent(context, ReplyReceiver::class.java).apply {
-                putExtra(ReplyReceiver.EXTRA_SUGGESTED_REPLY, reply)
-                putExtra(ReplyReceiver.EXTRA_PACKAGE_NAME, packageName)
-                putExtra(ReplyReceiver.EXTRA_ORIGINAL_INTENT, originalReplyIntent)
-                putExtra(ReplyReceiver.EXTRA_RESULT_KEY, resultKey) // Truyền key
-            }
-            
-            val pendingIntent = PendingIntent.getBroadcast(
-                context,
-                index,
-                intent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
-            )
-
-            val action = NotificationCompat.Action.Builder(
-                0,
-                reply,
-                pendingIntent
-            ).build()
-            
-            builder.addAction(action)
-        }
-
-        // Add Inline Reply Action
+        // Add Inline Reply Action with Smart Choices
         val remoteInput = RemoteInput.Builder(ReplyReceiver.KEY_TEXT_REPLY)
             .setLabel("Type your reply...")
+            .setChoices(replies.toTypedArray()) // Đưa các gợi ý vào đây!
             .build()
 
         val replyIntent = Intent(context, ReplyReceiver::class.java).apply {
             putExtra(ReplyReceiver.EXTRA_PACKAGE_NAME, packageName)
             putExtra(ReplyReceiver.EXTRA_ORIGINAL_INTENT, originalReplyIntent)
-            putExtra(ReplyReceiver.EXTRA_RESULT_KEY, resultKey) // Truyền key
+            putExtra(ReplyReceiver.EXTRA_RESULT_KEY, resultKey)
         }
         
         val replyPendingIntent = PendingIntent.getBroadcast(
@@ -87,11 +63,26 @@ object NotificationHelper {
 
         val inlineAction = NotificationCompat.Action.Builder(
             android.R.drawable.ic_menu_send,
-            "Reply",
+            "Reply with Smart Suggestions",
             replyPendingIntent
         ).addRemoteInput(remoteInput).build()
 
         builder.addAction(inlineAction)
+
+        // Chỉ hiển thị tối đa 2 nút gợi ý bên ngoài để tránh bị che
+        replies.take(2).forEachIndexed { index, reply ->
+            val intent = Intent(context, ReplyReceiver::class.java).apply {
+                putExtra(ReplyReceiver.EXTRA_SUGGESTED_REPLY, reply)
+                putExtra(ReplyReceiver.EXTRA_PACKAGE_NAME, packageName)
+                putExtra(ReplyReceiver.EXTRA_ORIGINAL_INTENT, originalReplyIntent)
+                putExtra(ReplyReceiver.EXTRA_RESULT_KEY, resultKey)
+            }
+            
+            val pendingIntent = PendingIntent.getBroadcast(context, index, intent, 
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE)
+
+            builder.addAction(NotificationCompat.Action.Builder(0, reply, pendingIntent).build())
+        }
 
         notificationManager.notify(NOTIFICATION_ID, builder.build())
     }
